@@ -1,0 +1,10 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+data/*.db
+.vscode/
+logs/
+.chrome-idealista/
+*_debug.html
+data/*_prueba.txt
