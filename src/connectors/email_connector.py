@@ -73,11 +73,7 @@ def fetch_unread_emails(
             )
         )
 
-        return [
-            email
-            for email in emails
-            if is_portal_alert_email(email)
-        ]
+        return emails
 
     finally:
         close_mailbox(mailbox)

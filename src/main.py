@@ -19,12 +19,11 @@ from src.monitoring.parser_health import (
     should_send_parser_alert,
 )
 from src.parsers.listing_details import (
+    extract_fotocasa_listing_details,
     extract_habitaclia_listing_details,
     extract_idealista_listing_details,
     extract_pisos_listing_details,
     extract_price,
-    extract_price_for_listing,
-    extract_title_for_listing,
     extract_zone,
     get_fotocasa_advertiser,
     get_habitaclia_advertiser,
@@ -109,7 +108,15 @@ def process_email(
     )
 
     if parser is None:
-        return False
+        logger.info(
+            "Correo inmobiliario ignorado y "
+            "marcado como leído | "
+            "remitente=%s | asunto=%s",
+            email.from_ or "Desconocido",
+            email.subject or "Sin asunto",
+        )
+
+        return True
 
     try:
         milanuncios_cards = {}
@@ -464,12 +471,25 @@ def process_email(
             # FOTOCASA
             # =================================================
             elif parser.portal == "Fotocasa":
-                listing_price = (
-                    extract_price_for_listing(
-                        raw_content,
-                        external_id,
-                    )
+                (
+                    listing_title,
+                    listing_price,
+                    listing_zone,
+                ) = extract_fotocasa_listing_details(
+                    email.html or "",
+                    external_id or "",
                 )
+
+                # Si la tarjeta no contiene ninguna de las zonas
+                # configuradas, el inmueble no nos interesa.
+                if not listing_zone:
+                    logger.info(
+                        "Anuncio de Fotocasa fuera de "
+                        "las zonas configuradas: %s",
+                        link,
+                    )
+
+                    continue
 
                 listing_advertiser = (
                     get_fotocasa_advertiser(
@@ -478,8 +498,17 @@ def process_email(
                 )
 
                 logger.info(
-                    "Anunciante de Fotocasa para %s: %s",
+                    "Datos de Fotocasa %s | "
+                    "titulo=%s | "
+                    "precio=%s | "
+                    "zona=%s | "
+                    "anunciante=%s",
                     external_id,
+                    listing_title
+                    or "no identificado",
+                    listing_price
+                    or "no identificado",
+                    listing_zone,
                     listing_advertiser
                     or "no identificado",
                 )
@@ -499,12 +528,12 @@ def process_email(
             # ZONA
             # =================================================
             #
-            # Habitaclia, Pisos.com e Idealista ya obtienen
-            # la zona de la tarjeta concreta del inmueble.
+            # Fotocasa, Habitaclia, Pisos.com e Idealista
+            # ya obtienen la zona de la tarjeta concreta.
             #
-            # Para Fotocasa y otros portales seguimos usando
-            # el extractor general.
+            # Milanuncios obtiene la zona de su alerta.
             if parser.portal not in {
+                "Fotocasa",
                 "Habitaclia",
                 "Pisos.com",
                 "Idealista",
@@ -517,20 +546,8 @@ def process_email(
             # =================================================
             # TÍTULO
             # =================================================
-            #
-            # Fotocasa obtiene el título mediante el ID.
-            if parser.portal == "Fotocasa":
-                listing_title = (
-                    extract_title_for_listing(
-                        raw_content,
-                        external_id,
-                        listing_zone,
-                    )
-                )
-
-            # Habitaclia, Pisos.com e Idealista ya han
-            # obtenido el título de su tarjeta.
-            elif parser.portal not in {
+            if parser.portal not in {
+                "Fotocasa",
                 "Habitaclia",
                 "Pisos.com",
                 "Idealista",
@@ -545,6 +562,12 @@ def process_email(
                     email.subject
                     or f"Anuncio de {parser.portal}"
                 )
+
+            # =================================================
+            # CONTROL DE PRECIO
+            # =================================================
+            if listing_price is None:
+                missing_prices += 1
 
             # =================================================
             # CREAR INMUEBLE
@@ -669,7 +692,7 @@ def run_once() -> None:
 
     try:
         emails = fetch_unread_emails(
-            limit=100
+            limit=500
         )
 
         logger.info(

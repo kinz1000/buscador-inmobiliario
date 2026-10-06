@@ -147,6 +147,186 @@ def extract_title_for_listing(
     return title
 
 
+
+
+def extract_fotocasa_listing_details(
+    html: str,
+    external_id: str,
+) -> tuple[
+    str | None,
+    float | None,
+    str | None,
+]:
+    """
+    Extrae título, precio y zona de UNA tarjeta concreta
+    de Fotocasa, evitando mezclar datos entre anuncios.
+    """
+
+    if not html or not external_id:
+        return None, None, None
+
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
+    )
+
+    # Buscar únicamente enlaces pertenecientes
+    # al inmueble actual.
+    listing_links = [
+        element
+        for element in soup.find_all(
+            "a",
+            href=True,
+        )
+        if external_id in element["href"]
+    ]
+
+    if not listing_links:
+        return None, None, None
+
+    # =================================================
+    # ENCONTRAR LA TARJETA DEL INMUEBLE
+    # =================================================
+
+    listing_card = None
+
+    for element in listing_links:
+        for container in element.parents:
+
+            if container.name not in {
+                "td",
+                "tr",
+                "table",
+                "div",
+            }:
+                continue
+
+            container_text = container.get_text(
+                " ",
+                strip=True,
+            )
+
+            # Una tarjeta válida debería contener precio.
+            if "€" not in container_text:
+                continue
+
+            # Evitamos subir demasiado y coger
+            # todo el correo.
+            if len(container_text) > 2500:
+                continue
+
+            listing_card = container
+            break
+
+        if listing_card is not None:
+            break
+
+    if listing_card is None:
+        return None, None, None
+
+    listing_text = listing_card.get_text(
+        " ",
+        strip=True,
+    )
+
+    # =================================================
+    # PRECIO
+    # =================================================
+
+    price = extract_price(
+        listing_text
+    )
+
+    # =================================================
+    # ZONA
+    # =================================================
+
+    zone = extract_zone(
+        listing_text
+    )
+
+    # =================================================
+    # TÍTULO
+    # =================================================
+
+    title = None
+
+    property_pattern = re.compile(
+        r"\b("
+        r"piso|chalet|ático|atico|dúplex|duplex|"
+        r"estudio|casa|apartamento|loft"
+        r")\b",
+        re.IGNORECASE,
+    )
+
+    for element in listing_links:
+
+        candidates = [
+            element.get("title"),
+            element.get("aria-label"),
+            element.get_text(
+                " ",
+                strip=True,
+            ),
+        ]
+
+        for candidate in candidates:
+
+            if not candidate:
+                continue
+
+            candidate = candidate.strip()
+
+            if not property_pattern.search(candidate):
+                continue
+
+            # Evitar textos enormes o bloques completos
+            # del correo.
+            if len(candidate) > 250:
+                continue
+
+            title = candidate
+            break
+
+        if title:
+            break
+
+    # =================================================
+    # NORMALIZAR TÍTULO
+    # =================================================
+
+    if title:
+
+        title = re.sub(
+            r"\s+",
+            " ",
+            title,
+        ).strip()
+
+        title = re.sub(
+            r",\s*Madrid(?:\s+Capital)?\s*$",
+            "",
+            title,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        if not re.search(
+            r"\ben\s+venta\b",
+            title,
+            re.IGNORECASE,
+        ):
+            title = re.sub(
+                r"^(.+?)\s+en\s+",
+                r"\1 en venta en ",
+                title,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+
+    return title, price, zone
+
+
+
 def extract_habitaclia_listing_details(
     html: str,
     external_id: str,

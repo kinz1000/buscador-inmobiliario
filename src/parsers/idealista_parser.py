@@ -10,22 +10,23 @@ IDEALISTA_URL_PATTERN = re.compile(
 )
 
 
+# Correos de Idealista que NO son alertas de inmuebles.
+IDEALISTA_IGNORED_SENDERS = {
+    "news@diario.idealista.com",
+}
+
 def is_idealista_email(
     email: MailMessage,
 ) -> bool:
-    sender = (
-        email.from_
-        or ""
-    ).casefold()
-
-    subject = (
-        email.subject
-        or ""
-    ).casefold()
+    sender = (email.from_ or "").casefold()
+    subject = (email.subject or "").casefold()
 
     return (
-        "idealista" in sender
-        or "idealista" in subject
+        "noresponder@idealista.com" in sender
+        and (
+            "nuevo piso en tu búsqueda" in subject
+            or "nuevos pisos en tu búsqueda" in subject
+        )
     )
 
 
@@ -33,7 +34,7 @@ def extract_idealista_links(
     email: MailMessage,
 ) -> list[str]:
     links: set[str] = set()
-
+   
     if email.html:
         soup = BeautifulSoup(
             email.html,

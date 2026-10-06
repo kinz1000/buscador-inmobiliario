@@ -1,5 +1,5 @@
 import re
-
+from src.config import settings
 import requests
 from bs4 import BeautifulSoup
 from imap_tools import MailMessage
@@ -15,19 +15,25 @@ MILANUNCIOS_URL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-
 def is_milanuncios_email(
     email: MailMessage,
 ) -> bool:
     sender = (email.from_ or "").casefold()
     subject = (email.subject or "").casefold()
 
-    return (
-        "milanuncios" in sender
-        or "milanuncios" in subject
+    # No es un correo de Milanuncios.
+    if (
+        "milanuncios" not in sender
+        and "milanuncios" not in subject
+    ):
+        return False
+
+    # Solo procesamos alertas correspondientes
+    # a las zonas configuradas en .env.
+    return any(
+        zone.casefold() in subject
+        for zone in settings.zone_list
     )
-
-
 def resolve_milanuncios_url(
     url: str,
 ) -> str | None:

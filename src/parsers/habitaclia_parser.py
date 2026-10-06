@@ -1,5 +1,5 @@
 import re
-
+from src.config import settings
 from bs4 import BeautifulSoup
 from imap_tools import MailMessage
 
@@ -56,11 +56,16 @@ def is_habitaclia_email(
     sender = (email.from_ or "").casefold()
     subject = (email.subject or "").casefold()
 
-    return (
-        "habitaclia" in sender
-        or "habitaclia" in subject
-    )
+    if (
+        "habitaclia" not in sender
+        and "habitaclia" not in subject
+    ):
+        return False
 
+    return any(
+        zone.casefold() in subject
+        for zone in settings.zone_list
+    )
 
 def extract_habitaclia_links(
     email: MailMessage,

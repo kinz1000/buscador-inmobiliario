@@ -164,18 +164,24 @@ def send_listing_summary(
         - unknown_count
     )
 
+    # No enviar correo si todos son agencias.
+    # TEMPORALMENTE DESACTIVADO PARA PRUEBAS.
     if particular_count == 0 and unknown_count == 0:
-        return
+         return
 
+  # SOLO PARTICULARES Y NO IDENTIFICADOS
     visible_listings = [
-    listing
-    for listing in listings
-    if (
-        not listing.advertiser
-        or listing.advertiser.casefold()
-        == "particular"
-    )
-]
+          listing
+          for listing in listings
+          if (
+              not listing.advertiser
+              or listing.advertiser.casefold()
+              == "particular"
+          )
+      ]
+
+# TEMPORAL: mostrar todos para pruebas
+    visible_listings = listings
     validate_email_settings()
 
     if not HEADER_IMAGE_PATH.is_file():
