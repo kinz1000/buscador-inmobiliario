@@ -8,3 +8,5 @@ logs/
 .chrome-idealista/
 *_debug.html
 data/*_prueba.txt
+data/
+src/data/

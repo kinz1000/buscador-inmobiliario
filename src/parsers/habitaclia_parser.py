@@ -121,3 +121,47 @@ def extract_habitaclia_id(
         return None
 
     return match.group(1)
+def extract_habitaclia_advertiser_from_email(
+    email: MailMessage,
+    external_id: str,
+) -> str | None:
+
+    if not email.html:
+        return None
+
+    soup = BeautifulSoup(email.html, "html.parser")
+
+    for card in soup.select("table.tableTexto"):
+
+        links = card.find_all("a", href=True)
+
+        if not any(
+            extract_habitaclia_id(link["href"]) == external_id
+            for link in links
+        ):
+            continue
+
+        paragraphs = card.find_all("p")
+
+        for paragraph in paragraphs:
+            description = paragraph.get_text(
+                " ", strip=True
+            )
+
+            patterns = [
+                r"^(.+?)\s+presenta\s+en\s+exclusiva\b",
+                r"^(.+?)\s+ofrece\s+en\s+exclusiva\b",
+                r"^(.+?)\s+pone\s+a\s+la\s+venta\b",
+            ]
+
+            for pattern in patterns:
+                match = re.search(
+                    pattern,
+                    description,
+                    re.IGNORECASE,
+                )
+
+                if match:
+                    return match.group(1).strip(" ,:-")
+
+    return None

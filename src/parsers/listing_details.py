@@ -148,7 +148,6 @@ def extract_title_for_listing(
 
 
 
-
 def extract_fotocasa_listing_details(
     html: str,
     external_id: str,
@@ -190,7 +189,16 @@ def extract_fotocasa_listing_details(
 
     listing_card = None
 
+    property_pattern = re.compile(
+        r"\b("
+        r"piso|chalet|ático|atico|dúplex|duplex|"
+        r"estudio|casa|apartamento|loft"
+        r")\b",
+        re.IGNORECASE,
+    )
+
     for element in listing_links:
+
         for container in element.parents:
 
             if container.name not in {
@@ -206,17 +214,27 @@ def extract_fotocasa_listing_details(
                 strip=True,
             )
 
-            # Una tarjeta válida debería contener precio.
+            # Debe contener precio.
             if "€" not in container_text:
                 continue
 
-            # Evitamos subir demasiado y coger
-            # todo el correo.
+            # Debe contener algún tipo de inmueble.
+            if not property_pattern.search(
+                container_text
+            ):
+                continue
+
+            # Evitar coger bloques enormes del email.
             if len(container_text) > 2500:
                 continue
 
             listing_card = container
-            break
+
+            # IMPORTANTE:
+            # no nos quedamos necesariamente con
+            # un contenedor demasiado pequeño.
+            if len(container_text) >= 30:
+                break
 
         if listing_card is not None:
             break
@@ -245,19 +263,44 @@ def extract_fotocasa_listing_details(
         listing_text
     )
 
+    # Fotocasa a veces muestra la calle pero no
+    # el nombre del barrio.
+    if not zone:
+
+        normalized_text = (
+            unicodedata.normalize(
+                "NFKD",
+                listing_text,
+            )
+            .encode(
+                "ascii",
+                "ignore",
+            )
+            .decode()
+            .casefold()
+        )
+
+        fotocasa_zone_aliases = {
+            # ALUCHE
+            "calle de camarena": "Aluche",
+            "calle camarena": "Aluche",
+
+            # Aquí podemos añadir otras calles
+            # cuando aparezcan casos reales.
+        }
+
+        for alias, alias_zone in (
+            fotocasa_zone_aliases.items()
+        ):
+            if alias in normalized_text:
+                zone = alias_zone
+                break
+
     # =================================================
     # TÍTULO
     # =================================================
 
     title = None
-
-    property_pattern = re.compile(
-        r"\b("
-        r"piso|chalet|ático|atico|dúplex|duplex|"
-        r"estudio|casa|apartamento|loft"
-        r")\b",
-        re.IGNORECASE,
-    )
 
     for element in listing_links:
 
@@ -277,11 +320,11 @@ def extract_fotocasa_listing_details(
 
             candidate = candidate.strip()
 
-            if not property_pattern.search(candidate):
+            if not property_pattern.search(
+                candidate
+            ):
                 continue
 
-            # Evitar textos enormes o bloques completos
-            # del correo.
             if len(candidate) > 250:
                 continue
 
@@ -290,6 +333,30 @@ def extract_fotocasa_listing_details(
 
         if title:
             break
+
+    # =================================================
+    # FALLBACK DEL TÍTULO
+    # =================================================
+
+    if not title:
+
+        match = re.search(
+            r"\b("
+            r"piso|chalet|ático|atico|dúplex|duplex|"
+            r"estudio|casa|apartamento|loft"
+            r")\b"
+            r"\s*[·\-]?\s*"
+            r"([^€]+?Madrid)",
+            listing_text,
+            re.IGNORECASE,
+        )
+
+        if match:
+            title = (
+                f"{match.group(1)} "
+                f"en venta en "
+                f"{match.group(2)}"
+            )
 
     # =================================================
     # NORMALIZAR TÍTULO
@@ -324,8 +391,6 @@ def extract_fotocasa_listing_details(
             )
 
     return title, price, zone
-
-
 
 def extract_habitaclia_listing_details(
     html: str,

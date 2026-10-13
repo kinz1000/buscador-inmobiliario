@@ -1,0 +1,19 @@
+
+services:
+  inmobiliario:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: bot-inmobiliario
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      DATABASE_URL: sqlite:////app/data/inmuebles.db
+
+    volumes:
+      - ./data:/app/data
