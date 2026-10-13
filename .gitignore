@@ -10,3 +10,8 @@ logs/
 data/*_prueba.txt
 data/
 src/data/
+
+.env.*
+!.env.example
+*.db-wal
+*.db-shm
